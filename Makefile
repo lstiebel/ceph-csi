@@ -31,7 +31,7 @@ LDFLAGS += -X $(GO_PROJECT)/pkg/util.GitCommit=$(GIT_COMMIT)
 # CSI_IMAGE_VERSION will be considered as the driver version
 LDFLAGS += -X $(GO_PROJECT)/pkg/util.DriverVersion=$(CSI_IMAGE_VERSION)
 
-all: cephcsi-amd64 image-cephcsi-amd64 push-image-cephcsi-amd64 clean cephcsi-arm64 image-cephcsi-arm64 push-image-cephcsi-arm64 clean
+all: cephcsi-amd64 image-cephcsi-amd64 push-image-cephcsi-amd64 clean cephcsi-arm64 image-cephcsi-arm64 push-image-cephcsi-arm64  manifest clean
 
 test: go-test static-check dep-check
 
@@ -71,6 +71,9 @@ image-cephcsi-arm64: cephcsi-arm64
 
 push-image-cephcsi-arm64: image-cephcsi-arm64
  	$(CONTAINER_CMD) push $(CSI_IMAGE_NAME):$(CSI_IMAGE_VERSION)-arm64
+
+manifest:
+	docker manifest create lstiebel/cephcsi:latest lstiebel/cephcsi:latest-amd64 lstiebel/cephcsi:latest-arm64 --amend
 
 clean:
 	go clean -r -x
