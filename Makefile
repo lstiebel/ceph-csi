@@ -31,7 +31,7 @@ LDFLAGS += -X $(GO_PROJECT)/pkg/util.GitCommit=$(GIT_COMMIT)
 # CSI_IMAGE_VERSION will be considered as the driver version
 LDFLAGS += -X $(GO_PROJECT)/pkg/util.DriverVersion=$(CSI_IMAGE_VERSION)
 
-all: cephcsi-amd64 image-cephcsi-amd64 push-image-cephcsi-amd64 clean cephcsi-arm64 image-cephcsi-arm64 push-image-cephcsi-arm64  manifest clean
+all: image-cephcsi-amd64 image-cephcsi-arm64 manifest
 
 test: go-test static-check dep-check
 
@@ -50,30 +50,29 @@ func-test:
 	go test github.com/ceph/ceph-csi/e2e $(TESTOPTIONS)
 
 .PHONY: cephcsi-amd64
-cephcsi-amd64:
+
+cephcsi-amd64: clean
 	if [ ! -d ./vendor ]; then dep ensure -vendor-only; fi
 	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -a -ldflags '$(LDFLAGS) -extldflags "-static"' -o  _output/cephcsi ./cmd/
 
-cephcsi-arm64:
+cephcsi-arm64: clean
 	if [ ! -d ./vendor ]; then dep ensure -vendor-only; fi
 	CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -a -ldflags '$(LDFLAGS) -extldflags "-static"' -o  _output/cephcsi ./cmd/
 
 image-cephcsi-amd64: cephcsi-amd64
 	cp _output/cephcsi deploy/cephcsi/image/cephcsi
 	$(CONTAINER_CMD) build -t $(CSI_IMAGE_NAME):$(CSI_IMAGE_VERSION)-amd64 deploy/cephcsi/image
-
-push-image-cephcsi-amd64: image-cephcsi-amd64
 	$(CONTAINER_CMD) push $(CSI_IMAGE_NAME):$(CSI_IMAGE_VERSION)-amd64
 
 image-cephcsi-arm64: cephcsi-arm64
 	cp _output/cephcsi deploy/cephcsi/image/cephcsi
 	$(CONTAINER_CMD) build -t $(CSI_IMAGE_NAME):$(CSI_IMAGE_VERSION)-arm64 deploy/cephcsi/image
-
-push-image-cephcsi-arm64: image-cephcsi-arm64
- 	$(CONTAINER_CMD) push $(CSI_IMAGE_NAME):$(CSI_IMAGE_VERSION)-arm64
+	$(CONTAINER_CMD) push $(CSI_IMAGE_NAME):$(CSI_IMAGE_VERSION)-arm64
 
 manifest:
 	docker manifest create lstiebel/cephcsi:latest lstiebel/cephcsi:latest-amd64 lstiebel/cephcsi:latest-arm64 --amend
+	docker manifest annotate lstiebel/cephcsi:latest lstiebel/cephcsi:latest-arm64 --os linux --arch arm64 --variant armv8
+	docker manifest push lstiebel/cephcsi:latest
 
 clean:
 	go clean -r -x
