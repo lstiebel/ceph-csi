@@ -12,12 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-.PHONY: all cephcsi
+.PHONY: all cephcsi-amd64
 
 CONTAINER_CMD?=docker
 
-CSI_IMAGE_NAME=$(if $(ENV_CSI_IMAGE_NAME),$(ENV_CSI_IMAGE_NAME),quay.io/cephcsi/cephcsi)
-CSI_IMAGE_VERSION=$(if $(ENV_CSI_IMAGE_VERSION),$(ENV_CSI_IMAGE_VERSION),canary)
+CSI_IMAGE_NAME=$(if $(ENV_CSI_IMAGE_NAME),$(ENV_CSI_IMAGE_NAME),lstiebel/cephcsi)
+CSI_IMAGE_VERSION=$(if $(ENV_CSI_IMAGE_VERSION),$(ENV_CSI_IMAGE_VERSION),latest)
 
 $(info cephcsi image settings: $(CSI_IMAGE_NAME) version $(CSI_IMAGE_VERSION))
 
@@ -31,7 +31,7 @@ LDFLAGS += -X $(GO_PROJECT)/pkg/util.GitCommit=$(GIT_COMMIT)
 # CSI_IMAGE_VERSION will be considered as the driver version
 LDFLAGS += -X $(GO_PROJECT)/pkg/util.DriverVersion=$(CSI_IMAGE_VERSION)
 
-all: cephcsi
+all: cephcsi-amd64 image-cephcsi-amd64 push-image-cephcsi-amd64 clean cephcsi-arm64 image-cephcsi-arm64 push-image-cephcsi-arm64 clean
 
 test: go-test static-check dep-check
 
@@ -49,18 +49,28 @@ static-check:
 func-test:
 	go test github.com/ceph/ceph-csi/e2e $(TESTOPTIONS)
 
-.PHONY: cephcsi
-cephcsi:
+.PHONY: cephcsi-amd64
+cephcsi-amd64:
 	if [ ! -d ./vendor ]; then dep ensure -vendor-only; fi
-	CGO_ENABLED=0 GOOS=linux go build -a -ldflags '$(LDFLAGS) -extldflags "-static"' -o  _output/cephcsi ./cmd/
+	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -a -ldflags '$(LDFLAGS) -extldflags "-static"' -o  _output/cephcsi ./cmd/
 
-image-cephcsi: cephcsi
+cephcsi-arm64:
+	if [ ! -d ./vendor ]; then dep ensure -vendor-only; fi
+	CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -a -ldflags '$(LDFLAGS) -extldflags "-static"' -o  _output/cephcsi ./cmd/
+
+image-cephcsi-amd64: cephcsi-amd64
 	cp _output/cephcsi deploy/cephcsi/image/cephcsi
-	$(CONTAINER_CMD) build -t $(CSI_IMAGE_NAME):$(CSI_IMAGE_VERSION) deploy/cephcsi/image
+	$(CONTAINER_CMD) build -t $(CSI_IMAGE_NAME):$(CSI_IMAGE_VERSION)-amd64 deploy/cephcsi/image
 
-push-image-cephcsi: image-cephcsi
-	$(CONTAINER_CMD) push $(CSI_IMAGE_NAME):$(CSI_IMAGE_VERSION)
+push-image-cephcsi-amd64: image-cephcsi-amd64
+	$(CONTAINER_CMD) push $(CSI_IMAGE_NAME):$(CSI_IMAGE_VERSION)-amd64
 
+image-cephcsi-arm64: cephcsi-arm64
+	cp _output/cephcsi deploy/cephcsi/image/cephcsi
+	$(CONTAINER_CMD) build -t $(CSI_IMAGE_NAME):$(CSI_IMAGE_VERSION)-arm64 deploy/cephcsi/image
+
+push-image-cephcsi-arm64: image-cephcsi-arm64
+ 	$(CONTAINER_CMD) push $(CSI_IMAGE_NAME):$(CSI_IMAGE_VERSION)-arm64
 
 clean:
 	go clean -r -x
